@@ -43,6 +43,15 @@ jobs:
         with:
           go-version: 'stable'
       - run: go test ./... -count=1
+      # Regression guard: the PostgreSQL driver must use $N placeholders —
+      # '?' is SQLite syntax and only fails against a real server.
+      - name: postgres driver uses $N placeholders
+        run: |
+          if grep -rn '?' internal/store/postgres/*.go; then
+            echo "placeholder '?' found in the postgres driver (must be \$N)" >&2
+            exit 1
+          fi
+          echo "OK: no '?' placeholders in the postgres driver"
 
   # Continuous credential-hygiene: generic secret patterns. The exact-value
   # scan against the real credentials runs pre-push from the local secrets
