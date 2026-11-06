@@ -26,10 +26,22 @@
 
 | Criterion (owner ruling §4) | Status |
 |---|---|
-| cgroup v2 on the host (`stat -fc %T` → `cgroup2fs`) | ✅ **PASSED** on this host |
-| One-command destroy/rebuild per profile | ⬜ Pending — profiles (Nano/Starter/Standard as code) not yet defined |
-| Fault injection runnable (process kill, disk full, network partition) | ⬜ Pending — harness not yet built |
-| Golden snapshot per profile | ⬜ Pending |
+| cgroup v2 on the host (`stat -fc %T` → `cgroup2fs`) | ✅ **PASSED** (install preflight + capability API) |
+| One-command destroy/rebuild per profile | ✅ **PASSED** — `scripts/testenv/reset-baseline.sh` (exercised 2026-11-07) |
+| Fault injection runnable (process kill, disk full, network partition) | ✅ **PASSED** — `scripts/testenv/fault-inject.sh` (SIGKILL → systemd auto-restart → audit chain still valid) |
+| Golden snapshot per profile | ✅ **PASSED** — `scripts/testenv/snapshot.sh` → `/var/backups/nexuspanel-test/golden-*.tar.gz` |
+
+## Walking-skeleton deployment (2026-11-07)
+
+- `deploy/install.sh --from-dir` completed in **48 s** (target < 600 s): apt deps (Go), build,
+  fail-closed preflight (Ubuntu 26.04.1 → experimental warning, not an error), systemd units,
+  both services healthy.
+- Control plane `127.0.0.1:8080`, site server `127.0.0.1:8081` — loopback-only by design; the
+  panel has no auth yet, so nothing is exposed publicly (HTTPS/auth are sequenced milestones).
+- Site `panel-test.local` provisioned and served both host-routed and via `/s/panel-test.local/`.
+- Audit chain verified across SIGKILL crash-restart and across a binary upgrade (durable in SQLite).
+- **No credentials were placed on this host** — the source arrived as a tarball and was built
+  locally on the VPS; the GitHub PAT and Daraja keys never left the sandbox secrets store.
 
 ## Notes for the plan
 
