@@ -1,8 +1,9 @@
 # --- Secrets: never commit credentials of any kind ---
 secrets/
 *.env
-!*.env.example
-.env*
+.env
+.env.*
+!.env.example
 *.local
 credentials*
 *credential*
