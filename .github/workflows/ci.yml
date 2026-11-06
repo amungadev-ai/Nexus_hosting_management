@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # DEC-001 condition, leg 1: the SQLite driver runs in CI from the first
+  # commit (pure-Go modernc.org/sqlite, no services needed).
+  test-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test ./... -count=1
+
+  # DEC-001 condition, leg 2: the PostgreSQL driver runs the same conformance
+  # suite in CI against a real server.
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_POSTGRES_DSN: postgres://postgres:postgres@localhost:5432/nexus_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - run: go test ./... -count=1
+
+  # Continuous credential-hygiene: generic secret patterns. The exact-value
+  # scan against the real credentials runs pre-push from the local secrets
+  # store (scripts/secret_scan.py in the owner's sandbox) — no secrets exist
+  # in CI by policy.
+  secret-pattern-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: scan for generic credential patterns
+        run: |
+          ! rg -n --hidden -g '!.git' \
+            "ghp_[A-Za-z0-9]{20,}" \
+            "github_pat_[A-Za-z0-9_]{20,}" \
+            "AKIA[0-9A-Z]{16}" \
+            "-----BEGIN [A-Z ]*PRIVATE KEY-----" \
+            "xox[baprs]-[A-Za-z0-9-]{10,}" \
+            .
+          ! rg -n --hidden -g '!.git' -i \
+            "consumer[_-]?secret\s*[:=]\s*['\"][A-Za-z0-9]{16,}" \
+            .
